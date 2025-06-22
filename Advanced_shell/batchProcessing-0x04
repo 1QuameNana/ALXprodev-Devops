@@ -3,21 +3,25 @@
 # Pokémon list (lowercase)
 POKEMON_LIST=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
 
-# Base API URL
+# Base API endpoint
 BASE_URL="https://pokeapi.co/api/v2/pokemon"
 
-# Clean previous error log
+# Max fetch time per job (in seconds)
+TIMEOUT=10
+
+# Clear previous error log
 > errors.txt
 
-# Function to fetch Pokémon data in background
+# Function to fetch Pokémon
 fetch_pokemon() {
     local name=$1
+    local outfile="${name}.json"
+
     echo "Fetching $name..."
 
-    # Retry logic
     for attempt in {1..3}; do
-        curl -s -f -o "${name}.json" "${BASE_URL}/${name}" && {
-            echo "Saved ${name}.json"
+        curl -s -f -o "$outfile" "$BASE_URL/$name" && {
+            echo "Saved $outfile"
             return 0
         }
 
@@ -26,16 +30,30 @@ fetch_pokemon() {
     done
 
     echo "Failed to fetch $name after 3 attempts." | tee -a errors.txt
-    rm -f "${name}.json"
+    rm -f "$outfile"
 }
 
-# Launch fetches in parallel
+# Launch background fetches
 for name in "${POKEMON_LIST[@]}"; do
     fetch_pokemon "$name" &
+    pids["$!"]=$name
 done
 
-# Wait for all background processes to finish
+# Allow time for jobs, monitor them
+sleep $TIMEOUT
+
+# Use jobs to list background jobs
+echo "Checking for running jobs after timeout:"
+jobs
+
+# Kill any remaining jobs
+for job in $(jobs -p); do
+    echo "Killing process $job (timed out)"
+    kill -9 "$job"
+done
+
+# Wait for any that finish properly before or after kill
 wait
 
-echo "✅ All fetch operations completed."
+echo "✅ All
 
