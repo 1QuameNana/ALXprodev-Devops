@@ -1,26 +1,45 @@
 #!/bin/bash
 
-# Explicitly define Pokémon list in lowercase
+# List of Pokémon in lowercase
 POKEMON_LIST=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
 
 # Base API endpoint
 BASE_URL="https://pokeapi.co/api/v2/pokemon"
 
-# Loop through each Pokémon
+# Max retries per Pokémon
+MAX_RETRIES=3
+
+# Clear previous error log
+> errors.txt
+
+# Loop through Pokémon
 for name in "${POKEMON_LIST[@]}"; do
     echo "Fetching data for $name..."
+    attempt=1
+    success=0
 
-    # Fetch data and save to a file named after the Pokémon
-    curl -s -o "${name}.json" "${BASE_URL}/${name}"
+    while [ $attempt -le $MAX_RETRIES ]; do
+        # Fetch data and save to file
+        curl -s -f -o "${name}.json" "${BASE_URL}/${name}"
 
-    # Check if curl succeeded
-    if [ $? -ne 0 ]; then
-        echo "Failed to fetch data for $name" >> errors.txt
-    else
-        echo "Saved ${name}.json"
+        if [ $? -eq 0 ]; then
+            echo "Saved ${name}.json"
+            success=1
+            break
+        else
+            echo "Attempt $attempt failed for $name."
+            sleep 2  # Backoff delay
+            ((attempt++))
+        fi
+    done
+
+    # If all attempts failed
+    if [ $success -eq 0 ]; then
+        echo "Failed to fetch data for $name after $MAX_RETRIES attempts." | tee -a errors.txt
+        rm -f "${name}.json"  # Remove any incomplete file
     fi
 
-    # Add delay to handle rate limits
+    # Rate limiting delay
     sleep 2
 done
 
